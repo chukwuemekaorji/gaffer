@@ -1,0 +1,38 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# env files
+.env
+.env.local
+.env.*.local
+
+# editor
+.vscode/
+.idea/
+
+# os
+.DS_Store
+Thumbs.db
+
+# data — corpus stays out of git until we figure out hosting
+data/tactical_corpus/raw/
+data/tactical_corpus/processed/
+*.log
+
+# prefect
+.prefect/
