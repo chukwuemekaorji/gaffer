@@ -1,0 +1,16 @@
+# prefect deployment config for gaffer.
+# deploys from backend/ so all paths resolve cleanly against the app package.
+
+name: gaffer
+prefect-version: 3.1.0
+
+deployments:
+  - name: rss-poller
+    entrypoint: app/flows/ingest_rss.py:ingest_rss_flow
+    description: polls registered rss feeds every 15 minutes
+    work_pool:
+      name: default-agent-pool
+    schedules:
+      - cron: "*/15 * * * *"
+        timezone: "Europe/Lisbon"
+        active: true
