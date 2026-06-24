@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api import chat as chat_api
 from app.api import retrieve as retrieve_api
 from app.api import route as route_api
 from app.api import stats as stats_api
@@ -31,6 +32,7 @@ app.add_middleware(
 app.include_router(retrieve_api.router)
 app.include_router(stats_api.router)
 app.include_router(route_api.router)
+app.include_router(chat_api.router)
 
 
 @app.get("/health")
