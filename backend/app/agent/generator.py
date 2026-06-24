@@ -6,11 +6,16 @@ source id; no source id means refuse.
 
 sonnet is the right model here — generation is where output quality
 matters most, and the cost is amortised across the cheaper haiku calls
-upstream (rewriter + router)."""
+upstream (rewriter + router).
+
+refusals are handled locally (no llm call) with a small category-aware
+template bank. fast, free, and the voice stays consistent."""
 
 from __future__ import annotations
 
 import logging
+import random
+import re
 from collections.abc import AsyncIterator
 
 from anthropic import AsyncAnthropic
@@ -31,10 +36,9 @@ absolute rules:
 1. every factual claim must cite a source id like [S1], [S2]. if no source supports a claim, do not make the claim.
 2. if the evidence is empty or doesn't address the question, say so plainly and ask the user to clarify or come back when there's more data.
 3. never invent stats, scores, dates, or quotes. these MUST come from the structured stats block when present.
-4. if the user asks something off-topic (not about united / football tactics / the squad), reply briefly that you're scoped to manchester united and decline.
-5. write naturally. no preamble like 'based on the evidence' or 'according to my sources'. just answer the question and cite as you go.
-6. when citations span multiple sources, group them: "United pressed high in the first half [S1][S3]." not "...high [S1] in the first half [S3]."
-7. for stats answers (table, results, fixtures), give the number from the stats block. always cite [Sx] for it.
+4. write naturally. no preamble like 'based on the evidence' or 'according to my sources'. just answer the question and cite as you go.
+5. when citations span multiple sources, group them: "united pressed high in the first half [S1][S3]." not "...high [S1] in the first half [S3]."
+6. for stats answers (table, results, fixtures), give the number from the stats block. always cite [Sx] for it.
 
 format:
 - short and direct unless the user asks for depth
@@ -48,12 +52,103 @@ router reasoning: {router_reasoning}
 """
 
 
-REFUSE_TEMPLATE = (
-    "i'm scoped to manchester united - tactics, results, players, transfers, "
-    "post-match analysis. that one's outside my brief. give me anything united "
-    "and i'm in."
-)
+# ============================================================
+# refusal bank
+# ============================================================
+# each category has a few variants so the bot doesn't feel like a
+# stuck record on repeated off-topic prods. all of them follow the
+# same shape: acknowledge → make the scope clear → offer something
+# i can do. the categories are detected by quick keyword scan, with
+# a 'generic' fallback for anything that doesn't match.
 
+REFUSAL_BANK: dict[str, list[str]] = {
+    "other_sport": [
+        "that's a different sport — i only cover manchester united. ask me about the squad, results, or how carrick's been setting them up and i'm in.",
+        "outside my brief, that one. united tactics, players, transfers, recent matches — those i can help with.",
+        "not my patch — i'm scoped to manchester united. happy to talk through anything tactical or news-related on the united side.",
+    ],
+    "other_club": [
+        "i'm a united analyst, so i won't go deep on another club. if you want to know how they line up against us though, i can help with that.",
+        "i don't cover other clubs in their own right — only how they intersect with united. want me to look at it through that lens?",
+        "outside my scope on its own, but if it's about how united match up against them, ask away.",
+    ],
+    "general_world": [
+        "i'm scoped to manchester united — politics, news outside football, that sort of thing isn't what i do. ask me anything united and i'm in.",
+        "that's outside my brief. i only cover manchester united — tactics, results, players, transfers.",
+        "i don't venture outside the united bubble. give me anything tactical, news, or squad-related on united and i'll have a go.",
+    ],
+    "personal": [
+        "i'm not really set up for that — i'm a united tactical analyst. tactics, results, players, transfers, that's my lane.",
+        "outside my brief. i only do manchester united. anything tactical, news, or post-match analysis on the united side?",
+    ],
+    "generic": [
+        "i'm a manchester united analyst — that one's outside my scope. happy to take anything tactical, news, results, or transfers on the united side.",
+        "outside my brief, but i'm fully in if you want anything on united — tactics, recent matches, players, table position.",
+        "that's not my patch. i'm scoped to manchester united. ask me how carrick's been setting up, how a player's doing, or where we are in the table.",
+        "i only cover manchester united. anything else and i'd just be guessing — which i won't do. give me something united-flavoured.",
+    ],
+}
+
+
+# keyword sets used to bucket the query. deliberately small — the
+# router already decided this is off-topic, all we're doing now is
+# picking a flavour of refusal.
+
+_OTHER_SPORTS = {
+    "f1", "formula 1", "formula one", "nascar", "indycar",
+    "nba", "basketball", "nfl", "american football",
+    "mlb", "baseball", "nhl", "hockey",
+    "ufc", "mma", "boxing",
+    "cricket", "tennis", "wimbledon", "us open", "rugby", "golf", "pga",
+    "olympics", "olympic", "athletics",
+}
+
+_OTHER_CLUBS = {
+    "arsenal", "chelsea", "liverpool", "tottenham", "spurs", "man city", "manchester city",
+    "newcastle", "aston villa", "west ham", "everton", "leeds",
+    "real madrid", "barcelona", "barca", "atletico", "psg",
+    "bayern", "dortmund", "juventus", "inter", "milan", "napoli",
+}
+
+_PERSONAL = {
+    "you ", "your favourite", "your favorite", "do you like", "are you",
+    "love you", "marry me", "your name", "who made you",
+}
+
+
+def _classify_refusal(query: str) -> str:
+    q = query.lower()
+
+    for term in _OTHER_SPORTS:
+        if term in q:
+            return "other_sport"
+
+    # other-club detection only fires when it's *only* about that club —
+    # mentions like "how do we play against arsenal" aren't off-topic.
+    # crude heuristic: contains a rival but no united-shaped reference.
+    united_refs = ("united", "man utd", "manchester united", "we ", "our ", "us ", "ours")
+    has_other_club = any(c in q for c in _OTHER_CLUBS)
+    has_united = any(u in q for u in united_refs)
+    if has_other_club and not has_united:
+        return "other_club"
+
+    for term in _PERSONAL:
+        if term in q:
+            return "personal"
+
+    # generic catch-all for news, life advice, weather, politics, code help, etc.
+    return "generic"
+
+
+def _refusal_for(query: str) -> str:
+    category = _classify_refusal(query)
+    variants = REFUSAL_BANK.get(category) or REFUSAL_BANK["generic"]
+    return random.choice(variants)
+
+
+# ============================================================
+# generation (sonnet) — for grounded answers only
+# ============================================================
 
 _client: AsyncAnthropic | None = None
 
@@ -81,22 +176,29 @@ async def generate_stream(
     context: BuiltContext,
     decision: RouterDecision,
 ) -> AsyncIterator[str]:
-    """yields output tokens as they arrive. handles refusal locally so
-    we don't burn a sonnet call when the router already decided to refuse."""
+    """yields output tokens as they arrive. refusals are served from
+    the local bank — no llm call, instant response."""
 
+    # refusal path: no api call, no evidence, no cost. we still yield
+    # in chunks so the frontend's streaming render keeps a single code
+    # path for all responses.
     if Route.REFUSE in decision.routes and len(decision.routes) == 1:
-        yield REFUSE_TEMPLATE
+        text = _refusal_for(query)
+        # yield in small slices so the ui treats it like a streamed reply.
+        # without this it would arrive as one giant token and feel jarring.
+        for piece in re.findall(r"\S+\s*", text):
+            yield piece
         return
 
+    # normal path: grounded answer over the assembled evidence.
     client = _get_client()
     system = _build_system(context, decision)
-
     async with client.messages.stream(
         model=GENERATION_MODEL,
         max_tokens=1024,
         system=system,
         messages=[{"role": "user", "content": query}],
-        temperature=0.3,        # low but not zero — answers should sound natural
+        temperature=0.3,
     ) as stream:
         async for text in stream.text_stream:
             yield text

@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
+/* design tokens. kept small on purpose — palette is restrained,
+   typography does the heavy lifting. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f7f4ed;
+  --ink: #171717;
+  --muted: #6f6a62;
+  --hairline: #e6dfd2;
+  --red: #c8102e;
+
+  --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: var(--font-display), "Iowan Old Style", "Apple Garamond",
+    Georgia, serif;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-hairline: var(--hairline);
+  --color-red: var(--red);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11"; /* geist's stylistic alternates */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+/* link defaults — underlined, no decoration when interactive */
+a {
+  color: inherit;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* the citation pill. this is the visual signature of the whole
+   project, so the styling lives here once and is reused everywhere
+   the product shows a [S1]-style reference. */
+.cite {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  font-weight: 500;
+  color: var(--red);
+  background: rgba(200, 16, 46, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  vertical-align: baseline;
+  letter-spacing: 0.02em;
+}
+
+/* selection — small detail but worth getting right */
+::selection {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
