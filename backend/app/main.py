@@ -6,6 +6,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.api import retrieve as retrieve_api
+from app.api import route as route_api
+from app.api import stats as stats_api
 from app.config import get_settings
 from app.db.session import get_db
 
@@ -17,7 +19,6 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# next.js dev server runs on 3000, prod frontend gets added once deployed
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -28,18 +29,17 @@ app.add_middleware(
 
 
 app.include_router(retrieve_api.router)
+app.include_router(stats_api.router)
+app.include_router(route_api.router)
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    # cheap liveness check. just confirms the api process is up.
     return {"status": "ok", "env": settings.app_env}
 
 
 @app.get("/health/db")
 def health_db(db: Session = Depends(get_db)) -> dict[str, object]:
-    """confirms we can reach postgres and pgvector is installed.
-    if either fails this 500s, which is what we want for a health probe."""
     db_version = db.execute(text("select version()")).scalar_one()
     has_vector = db.execute(
         text("select exists(select 1 from pg_extension where extname = 'vector')")
