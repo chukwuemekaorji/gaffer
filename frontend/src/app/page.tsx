@@ -1,20 +1,28 @@
-import Link from "next/link";
+"use client";
 
-// the landing page is intentionally one file. no component splitting
-// until we know the layout has settled. easier to iterate on copy and
-// spacing when everything is right here.
+import Link from "next/link";
+import { motion } from "motion/react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+
+const springEase = "easeOut" as const;
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: springEase } },
+};
+
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
+};
+
 export default function Home() {
   return (
-    <main className="min-h-screen px-6 sm:px-8">
+    <main className="min-h-screen overflow-x-hidden">
       <Nav />
-
-      <article className="mx-auto max-w-[680px] pt-20 sm:pt-28">
-        <Hero />
-        <DemoBlock />
-        <WhatItReads />
-        <HowItHandlesUncertainty />
-      </article>
-
+      <Hero />
+      <Principles />
+      <FinalCTA />
       <Footer />
     </main>
   );
@@ -22,218 +30,216 @@ export default function Home() {
 
 function Nav() {
   return (
-    <nav className="mx-auto flex max-w-[680px] items-center justify-between pt-6">
-      <Link
-        href="/"
-        className="font-display text-[22px] leading-none no-underline tracking-tight"
-      >
-        Gaffer.
-      </Link>
-      <Link
-        href="/chat"
-        className="font-mono text-[12px] uppercase tracking-[0.12em] text-[color:var(--muted)] no-underline hover:text-[color:var(--ink)]"
-      >
-        Open the chat →
-      </Link>
+    <nav className="sticky top-0 z-30 border-b border-[color:var(--hairline)]/60 bg-[color:var(--bg)]/85 backdrop-blur-md">
+      <div className="mx-auto flex max-w-[1180px] items-center justify-between px-6 py-4 sm:px-10">
+        <Link href="/" className="font-display text-[24px] leading-none no-underline tracking-tight">
+          Gaffer<span className="text-[color:var(--red)]">.</span>
+        </Link>
+        <Link
+          href="/chat"
+          className="group inline-flex items-center gap-2 text-[13px] font-medium no-underline"
+        >
+          <span>Open the chat</span>
+          <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+        </Link>
+      </div>
     </nav>
   );
 }
 
 function Hero() {
   return (
-    <header className="border-b border-[color:var(--hairline)] pb-14">
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
-        A grounded tactical analyst · Manchester United
-      </p>
-      <h1 className="font-display mt-6 text-[44px] leading-[1.05] tracking-[-0.01em] sm:text-[56px]">
-        Ask anything about United.
-        <br />
-        <em className="italic text-[color:var(--muted)]">
-          Get cited answers.
-        </em>
-      </h1>
-      <p className="mt-7 max-w-[52ch] text-[17px] leading-[1.6] text-[color:var(--ink)]">
-        Gaffer is an AI analyst that won't make things up about Manchester
-        United. Every claim it makes points back to a source — a tactical
-        article, a match report, a live stat, or a verified news story. When it
-        can't ground an answer, it says so.
-      </p>
+    <section className="px-6 pt-16 pb-24 sm:px-10 sm:pt-24 sm:pb-32">
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+        className="mx-auto grid max-w-[1180px] items-center gap-12 lg:grid-cols-[1.15fr_1fr] lg:gap-20"
+      >
+        <div>
+          <motion.p variants={fadeUp} className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--muted)]">
+            Manchester United · AI Tactical Analyst
+          </motion.p>
 
-      <div className="mt-10 flex items-center gap-6">
+          <motion.h1
+            variants={fadeUp}
+            className="font-display mt-7 text-[clamp(44px,7vw,84px)] leading-[1.02] tracking-[-0.015em] text-[color:var(--ink)]"
+          >
+            Ask anything <br />
+            about <em className="italic text-[color:var(--red)]">United</em>.
+          </motion.h1>
+
+          <motion.p variants={fadeUp} className="mt-7 max-w-[52ch] text-[17px] leading-[1.6] text-[color:var(--ink-soft)]">
+            From Carrick's pressing structure to Cantona's volleys — Gaffer is a tactical analyst trained on real football writing, live stats and verified news. It never guesses.
+          </motion.p>
+
+          <motion.div variants={fadeUp} className="mt-10 flex flex-wrap items-center gap-4">
+            <Link
+              href="/chat"
+              className="group inline-flex items-center gap-2 bg-[color:var(--ink)] px-6 py-3.5 text-[14px] font-medium text-[color:var(--bg)] no-underline transition-colors hover:bg-[color:var(--red)]"
+            >
+              Ask Gaffer a question
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+            <Link
+              href="https://github.com/chukwuemekaorji/gaffer"
+              target="_blank"
+              className="group inline-flex items-center gap-1.5 text-[13px] text-[color:var(--muted)] no-underline hover:text-[color:var(--ink)]"
+            >
+              Source on GitHub
+              <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </Link>
+          </motion.div>
+        </div>
+
+        <motion.div variants={fadeUp} className="relative">
+          <div className="img-placeholder aspect-[4/5] w-full">
+            <div className="flex h-full items-center justify-center">
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
+                Hero image →
+              </span>
+            </div>
+          </div>
+          <div className="absolute -bottom-6 -left-6 hidden border border-[color:var(--hairline)] bg-[color:var(--bg-elevated)] px-4 py-3 sm:block">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--muted)]">Built in public</p>
+            <p className="mt-1 font-display text-[18px] leading-none">2026</p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </section>
+  );
+}
+
+const PRINCIPLES = [
+  {
+    label: "How it knows",
+    title: "It reads, it doesn't guess.",
+    body: "Tactical articles, match reports and player profiles are continuously ingested, chunked and indexed. Live league standings, fixtures and player stats come straight from football-data.org. Gaffer answers from real material — not vibes from a training set.",
+    imageHint: "Tactical board / pitch diagram",
+  },
+  {
+    label: "How it answers",
+    title: "Every claim has a receipt.",
+    body: "Behind each answer, Gaffer keeps the sources it actually used. Open the panel and you'll see which match report, which stat row, which article informed what you just read. Nothing on screen is decorative — it all traces back.",
+    imageHint: "Sources panel / archive shelf",
+  },
+  {
+    label: "When it doesn't know",
+    title: "It would rather say nothing.",
+    body: "If the sources don't cover it, Gaffer tells you. Other clubs, other sports, idle speculation — none of it gets answered with a hallucination. A specialist tool that's honest about its edges, not a chatbot trying to please.",
+    imageHint: "Empty / quiet image",
+  },
+];
+
+function Principles() {
+  return (
+    <section className="border-t border-[color:var(--hairline)] px-6 py-24 sm:px-10 sm:py-32">
+      <div className="mx-auto max-w-[1180px]">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6 }}
+          className="mb-20 flex items-baseline justify-between border-b border-[color:var(--hairline)] pb-8"
+        >
+          <h2 className="font-display text-[clamp(28px,4vw,44px)] leading-[1.05]">
+            Three principles.
+          </h2>
+          <p className="hidden font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--muted)] sm:block">
+            What makes it Gaffer
+          </p>
+        </motion.div>
+
+        <div className="space-y-32">
+          {PRINCIPLES.map((p, i) => (
+            <Principle key={p.title} principle={p} reversed={i % 2 === 1} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Principle({
+  principle,
+  reversed,
+}: {
+  principle: (typeof PRINCIPLES)[number];
+  reversed: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.8, ease: springEase }}
+      className={`grid items-center gap-10 lg:gap-20 ${reversed ? "lg:grid-cols-[1fr_1.15fr]" : "lg:grid-cols-[1.15fr_1fr]"}`}
+    >
+      <div className={reversed ? "lg:order-2" : ""}>
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--muted)]">
+          {principle.label}
+        </p>
+        <h3 className="font-display mt-5 text-[clamp(28px,4vw,44px)] leading-[1.08] tracking-[-0.01em]">
+          {principle.title}
+        </h3>
+        <p className="mt-6 max-w-[48ch] text-[16px] leading-[1.7] text-[color:var(--ink-soft)]">
+          {principle.body}
+        </p>
+      </div>
+      <div className={reversed ? "lg:order-1" : ""}>
+        <div className="img-placeholder aspect-[5/4] w-full">
+          <div className="flex h-full items-center justify-center">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
+              {principle.imageHint}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function FinalCTA() {
+  return (
+    <section className="border-t border-[color:var(--hairline)] px-6 py-28 sm:px-10 sm:py-36">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.7 }}
+        className="mx-auto max-w-[820px] text-center"
+      >
+        <h2 className="font-display text-[clamp(40px,6vw,72px)] leading-[1.05] tracking-[-0.01em]">
+          Talk to it.
+        </h2>
+        <p className="mx-auto mt-6 max-w-[44ch] text-[16px] leading-[1.65] text-[color:var(--muted)]">
+          The conversation is the demo. Ask whatever you'd ask a tactically obsessed friend.
+        </p>
         <Link
           href="/chat"
-          className="bg-[color:var(--ink)] px-5 py-3 text-[14px] text-[color:var(--bg)] no-underline transition-colors hover:bg-[color:var(--red)]"
+          className="group mt-12 inline-flex items-center gap-2 bg-[color:var(--ink)] px-8 py-4 text-[14px] font-medium text-[color:var(--bg)] no-underline transition-colors hover:bg-[color:var(--red)]"
         >
-          Ask Gaffer a question
+          Open the chat
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
         </Link>
-        <Link
-          href="https://github.com/chukwuemekaorji/gaffer"
-          className="font-mono text-[12px] uppercase tracking-[0.12em] text-[color:var(--muted)] hover:text-[color:var(--ink)]"
-          target="_blank"
-        >
-          Source on GitHub
-        </Link>
-      </div>
-    </header>
-  );
-}
-
-// the demo block is the signature. it's a static mock of a real
-// gaffer interaction so visitors immediately see what the product is
-// and what the citation pills look like in context. no animation, no
-// fake typing — just typeset html that reads like the product.
-function DemoBlock() {
-  return (
-    <section className="border-b border-[color:var(--hairline)] py-14">
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
-        Example
-      </p>
-
-      <div className="mt-6 space-y-7">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--muted)]">
-            You
-          </p>
-          <p className="mt-2 text-[17px] leading-[1.55]">
-            How does Carrick's setup differ from Amorim's 3-4-3?
-          </p>
-        </div>
-
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--muted)]">
-            Gaffer
-          </p>
-          <p className="mt-2 text-[17px] leading-[1.65]">
-            Carrick has moved United back to a 4-2-3-1 with a double pivot of
-            Casemiro and Mainoo, prioritising defensive compactness over
-            Amorim's aggressive 3-4-3 high press.{" "}
-            <Cite>S1</Cite> Where Amorim pushed his wing-backs high to trigger
-            pressing traps, Carrick keeps Shaw and Dalot narrower to support the
-            centre-backs against deep blocks. <Cite>S2</Cite> Five games into
-            his permanent appointment, the side has 13 points from 15
-            available. <Cite>S3</Cite>
-          </p>
-        </div>
-
-        <div className="border-t border-[color:var(--hairline)] pt-6">
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[color:var(--muted)]">
-            Sources
-          </p>
-          <ul className="mt-3 space-y-2 text-[14px] text-[color:var(--muted)]">
-            <li>
-              <Cite>S1</Cite>{" "}
-              <span className="text-[color:var(--ink)]">
-                Michael Carrick's Man United Tactics
-              </span>{" "}
-              · backtocarrington.com
-            </li>
-            <li>
-              <Cite>S2</Cite>{" "}
-              <span className="text-[color:var(--ink)]">
-                Manchester United 3 Liverpool 2: tactical analysis
-              </span>{" "}
-              · Coaches' Voice
-            </li>
-            <li>
-              <Cite>S3</Cite>{" "}
-              <span className="text-[color:var(--ink)]">
-                Premier League table position
-              </span>{" "}
-              · football-data.org
-            </li>
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function WhatItReads() {
-  // four data sources, written as short paragraphs not bullets. the
-  // skill warned that bullet/icon grids are a tell of templated design;
-  // setting these as prose reinforces the editorial direction.
-  return (
-    <section className="border-b border-[color:var(--hairline)] py-14">
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
-        What it reads
-      </p>
-
-      <div className="mt-6 space-y-6 text-[16px] leading-[1.65]">
-        <p>
-          <strong className="font-medium">Tactical writing.</strong> A curated
-          knowledge base spanning United's last three managerial eras — Ten Hag,
-          Amorim, Carrick — drawn from outlets like The Coaches' Voice and
-          Back to Carrington.
-        </p>
-
-        <p>
-          <strong className="font-medium">Live structured stats.</strong>{" "}
-          League position, fixtures, results, and player stats from
-          football-data.org, refreshed in the background. Factual lookups
-          never touch the language model's memory.
-        </p>
-
-        <p>
-          <strong className="font-medium">Continuous news ingestion.</strong>{" "}
-          RSS feeds from BBC Sport, The Guardian, the official Manchester
-          United site, and the Manchester Evening News, pulled and indexed
-          every fifteen minutes.
-        </p>
-
-        <p>
-          <strong className="font-medium">Web search.</strong> A fallback for
-          breaking news that hasn't been indexed yet. Used sparingly and only
-          when the routing layer judges that the question is recent enough to
-          need it.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function HowItHandlesUncertainty() {
-  return (
-    <section className="py-14">
-      <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
-        When it doesn't know
-      </p>
-
-      <p className="mt-6 text-[16px] leading-[1.65]">
-        If none of the four sources above can ground an answer, Gaffer says so
-        and asks for clarification — it doesn't fall back on guesses from
-        training data. Out-of-scope questions (other clubs, other sports,
-        general life advice) get a polite decline rather than a hallucinated
-        answer.
-      </p>
-
-      <p className="mt-5 text-[16px] leading-[1.65] text-[color:var(--muted)]">
-        That refusal posture is the entire point: a specialist tool that's
-        honest about the edges of what it knows, rather than a chatbot that's
-        confidently wrong.
-      </p>
+      </motion.div>
     </section>
   );
 }
 
 function Footer() {
   return (
-    <footer className="mx-auto mt-24 max-w-[680px] border-t border-[color:var(--hairline)] py-8 text-[12px] text-[color:var(--muted)]">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span>Built by Chukwuemeka Orji. Not affiliated with Manchester United FC.</span>
+    <footer className="border-t border-[color:var(--hairline)] px-6 py-10 sm:px-10">
+      <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 text-[12px] text-[color:var(--muted)]">
+        <span>Built by Chukwuemeka Orji · Not affiliated with Manchester United FC</span>
         <Link
           href="https://github.com/chukwuemekaorji/gaffer"
-          className="font-mono uppercase tracking-[0.12em] hover:text-[color:var(--ink)]"
           target="_blank"
+          className="font-mono uppercase tracking-[0.14em] no-underline hover:text-[color:var(--ink)]"
         >
           GitHub
         </Link>
       </div>
     </footer>
   );
-}
-
-// citation pill — uses the .cite class defined in globals.css so the
-// styling stays in one place and gets reused by the chat ui later.
-function Cite({ children }: { children: React.ReactNode }) {
-  return <span className="cite">[{children}]</span>;
 }
