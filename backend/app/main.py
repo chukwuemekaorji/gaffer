@@ -11,6 +11,7 @@ from app.api import route as route_api
 from app.api import stats as stats_api
 from app.config import get_settings
 from app.db.session import get_db
+from app.middleware import RateLimitMiddleware
 
 settings = get_settings()
 
@@ -20,13 +21,19 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# cors first (outermost), then rate limiting.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        # deployed frontend gets added below from settings
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(RateLimitMiddleware)
 
 
 app.include_router(retrieve_api.router)

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
@@ -76,7 +77,7 @@ function Hero() {
           <motion.div variants={fadeUp} className="mt-10 flex flex-wrap items-center gap-4">
             <Link
               href="/chat"
-              className="group inline-flex items-center gap-2 bg-[color:var(--ink)] px-6 py-3.5 text-[14px] font-medium text-[color:var(--bg)] no-underline transition-colors hover:bg-[color:var(--red)]"
+              className="group inline-flex items-center gap-2 border border-[color:var(--red)] bg-[color:var(--red)] px-6 py-3.5 text-[14px] font-medium text-[color:var(--bg)] no-underline transition-all hover:-translate-y-0.5 hover:bg-[#d61d38] hover:shadow-[0_10px_24px_rgba(200,16,46,0.22)]"
             >
               Ask Gaffer a question
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -93,12 +94,15 @@ function Hero() {
         </div>
 
         <motion.div variants={fadeUp} className="relative">
-          <div className="img-placeholder aspect-[4/5] w-full">
-            <div className="flex h-full items-center justify-center">
-              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
-                Hero image →
-              </span>
-            </div>
+          <div className="relative mx-auto aspect-[4/5] w-full max-w-[360px] overflow-hidden bg-transparent">
+            <Image
+              src="/logo1.png"
+              alt="Manchester United logo"
+              fill
+              priority
+              className="object-contain p-8"
+              sizes="(max-width: 1024px) 80vw, 360px"
+            />
           </div>
           <div className="absolute -bottom-6 -left-6 hidden border border-[color:var(--hairline)] bg-[color:var(--bg-elevated)] px-4 py-3 sm:block">
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--muted)]">Built in public</p>
@@ -116,18 +120,24 @@ const PRINCIPLES = [
     title: "It reads, it doesn't guess.",
     body: "Tactical articles, match reports and player profiles are continuously ingested, chunked and indexed. Live league standings, fixtures and player stats come straight from football-data.org. Gaffer answers from real material — not vibes from a training set.",
     imageHint: "Tactical board / pitch diagram",
+    imageSrc: "/bruno.png",
+    imageAlt: "Manchester United players",
   },
   {
     label: "How it answers",
     title: "Every claim has a receipt.",
     body: "Behind each answer, Gaffer keeps the sources it actually used. Open the panel and you'll see which match report, which stat row, which article informed what you just read. Nothing on screen is decorative — it all traces back.",
     imageHint: "Sources panel / archive shelf",
+    imageSrc: "/mainoo1.png",
+    imageAlt: "Manchester United player Mainoo",
   },
   {
     label: "When it doesn't know",
     title: "It would rather say nothing.",
     body: "If the sources don't cover it, Gaffer tells you. Other clubs, other sports, idle speculation — none of it gets answered with a hallucination. A specialist tool that's honest about its edges, not a chatbot trying to please.",
     imageHint: "Empty / quiet image",
+    imageSrc: "/cunha1.png",
+    imageAlt: "Manchester United player Cunha",
   },
 ];
 
@@ -187,12 +197,14 @@ function Principle({
         </p>
       </div>
       <div className={reversed ? "lg:order-1" : ""}>
-        <div className="img-placeholder aspect-[5/4] w-full">
-          <div className="flex h-full items-center justify-center">
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--muted)]">
-              {principle.imageHint}
-            </span>
-          </div>
+        <div className="relative mx-auto aspect-[5/4] w-full max-w-[420px] overflow-hidden bg-transparent">
+          <Image
+            src={principle.imageSrc}
+            alt={principle.imageAlt}
+            fill
+            className="object-contain p-6"
+            sizes="(max-width: 1024px) 80vw, 420px"
+          />
         </div>
       </div>
     </motion.div>
@@ -217,7 +229,7 @@ function FinalCTA() {
         </p>
         <Link
           href="/chat"
-          className="group mt-12 inline-flex items-center gap-2 bg-[color:var(--ink)] px-8 py-4 text-[14px] font-medium text-[color:var(--bg)] no-underline transition-colors hover:bg-[color:var(--red)]"
+          className="group mt-12 inline-flex items-center gap-2 border border-[color:var(--red)] bg-[color:var(--red)] px-8 py-4 text-[14px] font-medium text-[color:var(--bg)] no-underline transition-all hover:-translate-y-0.5 hover:bg-[#d61d38] hover:shadow-[0_10px_24px_rgba(200,16,46,0.22)]"
         >
           Open the chat
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />

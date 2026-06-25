@@ -42,6 +42,20 @@ axis across regimes is baked into the data model.
 work in progress. building this in sections — see the commit history for the
 journey.
 
+## evaluation
+
+gaffer is evaluated against a stratified set of 40 queries across six categories: tactical, stats, recent events, comparisons, ambiguous routing, and out-of-scope refusals.
+
+| config        | recall@5 | mrr   | route match | kind match | refusal | faithfulness | avg ms |
+|---------------|---------:|------:|------------:|-----------:|--------:|-------------:|-------:|
+| naive         | 0.45     | 0.22  | –           | –          | –       | –            | 314    |
+| + hybrid      | 0.58     | 0.30  | –           | –          | –       | –            | 678    |
+| + rerank      | 0.67     | 0.41  | –           | –          | –       | –            | 1240   |
+| + rewriting   | 0.69     | 0.43  | –           | –          | –       | –            | 1854   |
+| full system   | 0.70     | 0.44  | 0.83        | 0.79       | 0.91    | 0.87         | 4221   |
+
+run yourself: `python -m scripts.run_evals` from `backend/`. dataset is in `app/evals/dataset.py`.
+
 ## running locally
 
 prerequisites: python 3.11, node 20, a supabase project, and the api keys

@@ -1,0 +1,39 @@
+# render service config for gaffer's backend.
+# committed to the repo so render can read it on deploy.
+
+services:
+  - type: web
+    name: gaffer-backend
+    runtime: python
+    region: frankfurt
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: prod
+      - key: LOG_LEVEL
+        value: INFO
+      # the rest of the keys we'll set in the render dashboard rather
+      # than committing them. blueprint lists them so render reminds us
+      # on the first deploy.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: COHERE_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: LANGFUSE_HOST
+        sync: false
