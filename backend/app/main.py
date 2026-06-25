@@ -21,18 +21,18 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# cors first (outermost), then rate limiting.
+# cors. local dev origin is explicit; any vercel deployment of this
+# project (including preview branches with auto-generated urls) is
+# allowed via the regex. matches production (gaffer-xxx.vercel.app)
+# and preview (gaffer-git-branch-user.vercel.app) both.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        # deployed frontend gets added below from settings
-    ],
+    allow_origins=["http://localhost:3000"],
+    allow_origin_regex=r"https://gaffer.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 app.add_middleware(RateLimitMiddleware)
 
 
