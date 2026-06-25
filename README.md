@@ -37,10 +37,12 @@ axis across regimes is baked into the data model.
 - **observability**: langfuse
 - **evals**: custom harness + ragas
 
-## status
+## live demo
 
-work in progress. building this in sections — see the commit history for the
-journey.
+[https://gaffer-eight.vercel.app/](https://gaffer-eight.vercel.app/)
+
+backend runs on render's free tier — first request after a quiet period takes
+~30 seconds to wake up. give it a moment and refresh.
 
 ## evaluation
 
@@ -74,6 +76,19 @@ cd frontend
 npm install
 npm run dev
 ```
+## evaluation
+
+gaffer is evaluated against a stratified set of 40 queries across six categories: tactical, stats, recent events, comparisons, ambiguous routing, and out-of-scope refusals.
+
+| config        | recall@5 | mrr   | route match | kind match | refusal | avg ms |
+|---------------|---------:|------:|------------:|-----------:|--------:|-------:|
+| naive         | tbd      | tbd   | –           | –          | –       | tbd    |
+| + hybrid      | tbd      | tbd   | –           | –          | –       | tbd    |
+| + rerank      | tbd      | tbd   | –           | –          | –       | tbd    |
+| + rewriting   | tbd      | tbd   | –           | –          | –       | tbd    |
+| full system   | tbd      | tbd   | tbd         | tbd        | tbd     | tbd    |
+
+run yourself: `python -m scripts.run_evals` from `backend/`. dataset is in `app/evals/dataset.py`.
 
 ## license
 
