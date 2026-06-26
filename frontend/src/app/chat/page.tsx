@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ChatComposer } from "@/components/ChatComposer";
 import { ChatMessage } from "@/components/ChatMessage";
 import { SourcesPanel } from "@/components/SourcesPanel";
-import { streamChat } from "@/lib/api";
+import { streamChat, type ChatTurn } from "@/lib/api";
 import type { Message, Source } from "@/lib/types";
 
 const STARTER_QUERIES = [
@@ -34,11 +34,34 @@ export default function ChatPage() {
     .reverse()
     .find((m): m is Extract<Message, { role: "assistant" }> => m.role === "assistant");
 
+  // build the history payload from messages already in state. we
+  // include only completed turns — anything mid-stream or errored is
+  // skipped because we don't want partial assistant text fed back as
+  // context. the orchestrator caps the window server-side, so we
+  // send everything and let the backend trim.
+  function buildHistory(): ChatTurn[] {
+    return messages
+      .filter((m) => {
+        if (m.role === "user") return m.text.trim().length > 0;
+        // assistant turns: must have completed (not streaming) and not errored.
+        return !m.streaming && !m.error && m.text.trim().length > 0;
+      })
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        text: m.text,
+      }));
+  }
+
   async function ask(query: string) {
     if (busy || !query.trim()) return;
 
     const userId = crypto.randomUUID();
     const assistantId = crypto.randomUUID();
+
+    // snapshot history before we mutate state. otherwise the new
+    // user message and pending assistant placeholder would slip into
+    // the history we send.
+    const history = buildHistory();
 
     setMessages((prev) => [
       ...prev,
@@ -50,7 +73,7 @@ export default function ChatPage() {
     abortRef.current = new AbortController();
 
     try {
-      for await (const event of streamChat(query, abortRef.current.signal)) {
+      for await (const event of streamChat(query, history, abortRef.current.signal)) {
         setMessages((prev) =>
           prev.map((m): Message => {
             if (m.id !== assistantId || m.role !== "assistant") return m;

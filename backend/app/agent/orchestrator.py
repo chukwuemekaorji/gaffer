@@ -5,6 +5,11 @@ now wrapped with three observability layers:
   - semantic cache (redis): skip everything for near-duplicate queries
   - langfuse traces: per-stage timing + payloads for debugging
   - query log (postgres): sql-queryable analytics on every query
+
+conversation history is threaded through router and generator so
+follow-up turns ('what do you think', 'yeah but really') get
+classified and answered in the context of the conversation, not in
+isolation.
 """
 
 from __future__ import annotations
@@ -26,6 +31,13 @@ from app.obs import cache, query_log
 from app.obs.langfuse_client import get_langfuse
 
 log = logging.getLogger(__name__)
+
+
+# how many prior turns the router and generator see. enough to anchor
+# context, small enough to keep token costs predictable. older turns
+# slide off the window — the conversation gets 'recent memory' rather
+# than infinite recall.
+HISTORY_WINDOW = 8
 
 
 @dataclass
@@ -91,16 +103,49 @@ def _deserialise_decision(raw: str) -> RouterDecision:
     )
 
 
-async def answer(db: Session, query: str) -> AgentResponse:
+def _cache_key(query: str, history: list[tuple[str, str]]) -> str:
+    """build the string we hand to the cache for similarity lookup.
+
+    for a one-shot query, this is just the query. for a follow-up, we
+    prepend a compact summary of recent turns so the cache understands
+    'yeah but really' after a carrick conversation is a different
+    query than the same words after a cantona conversation.
+
+    we keep this lightweight — just the last couple of turns,
+    truncated. the semantic cache embeds this string, so longer
+    context = noisier embeddings, not better matches."""
+    if not history:
+        return query
+
+    tail = history[-4:]
+    parts = []
+    for role, text in tail:
+        speaker = "user" if role == "user" else "gaffer"
+        snippet = text[:200].strip().replace("\n", " ")
+        parts.append(f"{speaker}: {snippet}")
+    return " | ".join(parts) + f" || current: {query}"
+
+
+async def answer(
+    db: Session,
+    query: str,
+    *,
+    history: list[tuple[str, str]] | None = None,
+) -> AgentResponse:
     """blocking variant. used by tests and the eval harness. the
     streaming variant below shares all the observability + cache logic
     via duck typing on the events it yields."""
     started = time.perf_counter()
+    history = history or []
+    history = history[-HISTORY_WINDOW:]
+
     lf = get_langfuse()
-    trace = lf.trace(name="gaffer-agent", input={"query": query}) if lf else None
+    trace = lf.trace(name="gaffer-agent", input={"query": query, "history_turns": len(history)}) if lf else None
+
+    cache_key = _cache_key(query, history)
 
     # ---- cache lookup ----
-    cached = await cache.lookup(query)
+    cached = await cache.lookup(cache_key)
     if cached:
         decision = _deserialise_decision(cached.decision_json)
         sources = _deserialise_sources(cached.sources_json)
@@ -128,7 +173,7 @@ async def answer(db: Session, query: str) -> AgentResponse:
     # ---- route ----
     if trace:
         route_span = trace.span(name="route")
-    decision = await route_query(query)
+    decision = await route_query(query, history=history)
     if trace:
         route_span.update(
             output={
@@ -161,7 +206,7 @@ async def answer(db: Session, query: str) -> AgentResponse:
     # ---- generate ----
     if trace:
         gen_span = trace.span(name="generate")
-    text = await generate(query=query, context=context, decision=decision)
+    text = await generate(query=query, context=context, decision=decision, history=history)
     if trace:
         gen_span.update(output={"answer_length": len(text), "n_sources": len(context.sources)})
         gen_span.end()
@@ -178,7 +223,7 @@ async def answer(db: Session, query: str) -> AgentResponse:
     web_used = evidence.web is not None and bool(evidence.web.snippets)
 
     await cache.store(
-        query=query,
+        query=cache_key,
         answer=text,
         sources_json=_serialise_sources(context.sources),
         decision_json=_serialise_decision(decision),
@@ -208,7 +253,10 @@ async def answer(db: Session, query: str) -> AgentResponse:
 
 
 async def answer_stream(
-    db: Session, query: str
+    db: Session,
+    query: str,
+    *,
+    history: list[tuple[str, str]] | None = None,
 ) -> AsyncIterator[dict]:
     """streaming variant for the chat ui. emits sse-style events.
 
@@ -216,11 +264,16 @@ async def answer_stream(
     cached text — the frontend renders it the same way as a streamed
     response."""
     started = time.perf_counter()
+    history = history or []
+    history = history[-HISTORY_WINDOW:]
+
     lf = get_langfuse()
-    trace = lf.trace(name="gaffer-agent-stream", input={"query": query}) if lf else None
+    trace = lf.trace(name="gaffer-agent-stream", input={"query": query, "history_turns": len(history)}) if lf else None
+
+    cache_key = _cache_key(query, history)
 
     # cache fast path
-    cached = await cache.lookup(query)
+    cached = await cache.lookup(cache_key)
     if cached:
         decision = _deserialise_decision(cached.decision_json)
         sources = _deserialise_sources(cached.sources_json)
@@ -266,7 +319,7 @@ async def answer_stream(
     # full pipeline
     if trace:
         route_span = trace.span(name="route")
-    decision = await route_query(query)
+    decision = await route_query(query, history=history)
     if trace:
         route_span.update(output={"routes": [r.value for r in decision.routes]})
         route_span.end()
@@ -305,7 +358,7 @@ async def answer_stream(
         gen_span = trace.span(name="generate")
 
     answer_chunks: list[str] = []
-    async for token in generate_stream(query=query, context=context, decision=decision):
+    async for token in generate_stream(query=query, context=context, decision=decision, history=history):
         answer_chunks.append(token)
         yield {"type": "token", "data": token}
 
@@ -325,7 +378,7 @@ async def answer_stream(
     web_used = evidence.web is not None and bool(evidence.web.snippets)
 
     await cache.store(
-        query=query,
+        query=cache_key,
         answer=full_answer,
         sources_json=_serialise_sources(context.sources),
         decision_json=_serialise_decision(decision),

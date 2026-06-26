@@ -5,7 +5,12 @@ the router is the single biggest lever in this system. get it right and
 the agent never tries to recite a fact from parametric memory — every
 factual claim goes through structured stats, every analysis goes through
 rag, every recent event has a chance to hit the news corpus. get it wrong
-and you've just built a normal chatbot."""
+and you've just built a normal chatbot.
+
+conversation history is threaded through so short follow-ups
+('what do you think', 'yeah but really', 'idk i just feel we can do well')
+get classified in the context of the conversation rather than judged
+in isolation."""
 
 from __future__ import annotations
 
@@ -30,6 +35,11 @@ scope:
 
 your job: given a user query, decide which retrieval strategies to dispatch. you do NOT answer the question. you only classify.
 
+context:
+- you may be shown recent conversation history before the current message. use it to disambiguate. short or vague follow-ups ('idk', 'what do you think', 'yeah but really', 'i just feel we can do well') are continuations of the previous topic — classify them based on the conversational thread, not the message in isolation.
+- if previous turns were about united/football and the current short message is a continuation, the route is the same as the previous turn's topic. do NOT refuse a follow-up just because, read alone, it looks vague.
+- only refuse if the current message clearly shifts to a non-football topic.
+
 strategies:
 - stats: structured lookups for league position, fixtures, scores, results, points totals, goal differences, recent form. use for ANY factual claim about current standings or scheduled matches.
 - tactical_rag: analysis grounded in tactical articles or historical writing — formations, pressing, transitions, build-up patterns, set pieces, player roles, comparisons across eras, history of the club, legendary players or moments.
@@ -39,6 +49,7 @@ strategies:
 
 speculative / opinion questions:
 - "do you think we'll win", "what's your prediction", "is X overrated", "who's better" — these are VALID. dispatch [tactical_rag, stats] or [tactical_rag, recent_rag] so the generator can ground a speculative answer in real form / recent matches / tactical context. do NOT refuse opinion-shaped questions about football.
+- vibe-shaped follow-ups ('i just feel we can do well', 'we look sharp tho', 'nah we're cooked') are also valid — same routing as opinion questions.
 
 other clubs:
 - "how does arsenal press" — valid, dispatch [tactical_rag, web_search]. it's a football question. the generator will ground from what it can find and acknowledge gaps.
@@ -89,18 +100,53 @@ _FALLBACK = RouterDecision(
 )
 
 
-async def route_query(query: str) -> RouterDecision:
+def _build_user_content(query: str, history: list[tuple[str, str]]) -> str:
+    """package history + current query into a single string for the
+    router. we keep history compact — only the last few turns matter
+    for routing decisions, and longer history blows token budget.
+
+    each historical message is truncated to ~280 chars. that's enough
+    for the router to recognise the topic ('we were talking about
+    title chances') without paying full token cost for every prior
+    response."""
+    if not history:
+        return query
+
+    lines = ["recent conversation:"]
+    for role, text in history[-6:]:
+        speaker = "user" if role == "user" else "gaffer"
+        trimmed = text[:280].strip().replace("\n", " ")
+        if len(text) > 280:
+            trimmed += "..."
+        lines.append(f"{speaker}: {trimmed}")
+    lines.append("")
+    lines.append(f"current user message: {query}")
+    lines.append("")
+    lines.append("classify the current message in the context of this conversation.")
+    return "\n".join(lines)
+
+
+async def route_query(
+    query: str,
+    *,
+    history: list[tuple[str, str]] | None = None,
+) -> RouterDecision:
     """classify a query into one or more retrieval strategies. never
     raises — failures degrade to a tactical_rag fallback so the agent
-    can always make progress."""
+    can always make progress.
+
+    history is optional. when present, it gets prepended to the user
+    message so the router can disambiguate short follow-ups based on
+    what was being discussed."""
 
     try:
         client = _get_client()
+        user_content = _build_user_content(query, history or [])
         response = await client.messages.create(
             model=ROUTER_MODEL,
             max_tokens=400,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": query}],
+            messages=[{"role": "user", "content": user_content}],
             temperature=0.0,    # zero temperature — we want deterministic routing
         )
         raw = response.content[0].text.strip()
@@ -123,8 +169,9 @@ async def route_query(query: str) -> RouterDecision:
             needs_recency=bool(parsed.get("needs_recency", False)),
         )
         log.info(
-            "routed query=%r routes=%s era=%s players=%s",
+            "routed query=%r routes=%s era=%s players=%s history_turns=%d",
             query, [r.value for r in routes], decision.era, decision.players,
+            len(history or []),
         )
         return decision
 

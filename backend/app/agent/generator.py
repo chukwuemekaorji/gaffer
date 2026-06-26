@@ -9,7 +9,10 @@ matters most, and the cost is amortised across the cheaper haiku calls
 upstream (rewriter + router).
 
 refusals are handled locally (no llm call) with a small category-aware
-template bank. fast, free, and the voice stays consistent."""
+template bank. fast, free, and the voice stays consistent.
+
+conversation history is threaded through so follow-up turns build on
+the previous exchange rather than starting cold each time."""
 
 from __future__ import annotations
 
@@ -32,6 +35,8 @@ SYSTEM_PROMPT_TEMPLATE = """you are gaffer, a grounded ai football analyst with 
 
 you answer questions about united tactics, players, results, transfers, history, comparisons across managerial eras. you're also conversational about football in general — other clubs, league context, historical players and moments — as long as you can ground what you say.
 
+this is a conversation, not a series of one-shot queries. if you've been talking with this user already, keep that thread going. short follow-ups ('yeah but really', 'what do you think', 'idk', 'i just feel we can do well') are part of the same discussion — answer them in context, don't restate what you've already said. if the user is just vibing about football and not asking a sharp question, vibe back: give your read, ask what they're thinking, keep it natural.
+
 how to handle different question types:
 
 1. factual questions (table position, scores, fixtures) — pull from the structured stats block. cite [Sx]. never invent numbers.
@@ -42,9 +47,11 @@ how to handle different question types:
 
 4. speculative / opinion questions ("do you think we can win", "is X overrated", "who's better") — these are fair game. ground your speculation in actual evidence: recent form, head-to-head record, tactical match-up, what the corpus says about the player. always make clear it's your read, not fact. example: "based on recent form [S1] and the way we've handled high pressing this season [S2], i'd lean toward yes — but it's a tight call." never refuse a speculative football question.
 
-5. questions about other clubs or general football — answer if you have grounding. if the corpus only has thin coverage of, say, arsenal's press, say so plainly and offer what you can. don't pretend to know what you don't.
+5. vibe-shaped follow-ups ('i just feel we can do well', 'we look sharp tho', 'nah we're cooked') — these aren't requests for analysis, they're someone wanting to talk football. match the energy. respond with your own read, anchored in form / squad / context from the conversation. ask them what they're thinking. keep it short and human.
 
-6. truly off-topic questions (not football at all) — the router will set route=refuse before you see them. you won't need to handle this case.
+6. questions about other clubs or general football — answer if you have grounding. if the corpus only has thin coverage of, say, arsenal's press, say so plainly and offer what you can. don't pretend to know what you don't.
+
+7. truly off-topic questions (not football at all) — the router will set route=refuse before you see them. you won't need to handle this case.
 
 absolute rules:
 - every factual claim must cite a source id like [S1], [S2]. opinions don't need citations, but the form / context they're built on does.
@@ -53,6 +60,7 @@ absolute rules:
 - write naturally. no preamble like 'based on the evidence' or 'according to my sources'. just answer and cite as you go.
 - when citations span multiple sources, group them: "united pressed high in the first half [S1][S3]." not "...high [S1] in the first half [S3]."
 - for stats answers (table, results, fixtures), give the number from the stats block. always cite [Sx] for it.
+- don't repeat the user's question back at them before answering. just answer.
 
 format:
 - short and direct unless the user asks for depth
@@ -184,11 +192,50 @@ def _build_system(context: BuiltContext, decision: RouterDecision) -> str:
     )
 
 
+def _build_messages(query: str, history: list[tuple[str, str]]) -> list[dict]:
+    """assemble the anthropic messages array.
+
+    anthropic's api expects strict alternation: user → assistant →
+    user → assistant → user. we coerce the history to fit that pattern.
+    historic turns slot in as proper roles; the current query is
+    always the final user message. this gives sonnet native
+    multi-turn context — much better than stuffing prior turns into
+    a system-prompt blob, because the model is trained to handle
+    conversational structure this way."""
+    messages: list[dict] = []
+    last_role: str | None = None
+
+    for role, text in history:
+        # normalise: only 'user' and 'assistant' are valid for the api.
+        api_role = "user" if role == "user" else "assistant"
+
+        # skip empty messages and consecutive same-role turns (shouldn't
+        # happen but defends against malformed history from the client).
+        if not text.strip():
+            continue
+        if api_role == last_role:
+            continue
+
+        messages.append({"role": api_role, "content": text})
+        last_role = api_role
+
+    # the current query is always a fresh user turn. if the last
+    # historic message was also a user turn (shouldn't be — assistant
+    # always responds last — but defensive code), drop it so we don't
+    # send two user turns in a row.
+    if messages and messages[-1]["role"] == "user":
+        messages.pop()
+
+    messages.append({"role": "user", "content": query})
+    return messages
+
+
 async def generate_stream(
     *,
     query: str,
     context: BuiltContext,
     decision: RouterDecision,
+    history: list[tuple[str, str]] | None = None,
 ) -> AsyncIterator[str]:
     """yields output tokens as they arrive. refusals are served from
     the local bank — no llm call, instant response."""
@@ -198,8 +245,6 @@ async def generate_stream(
     # path for all responses.
     if Route.REFUSE in decision.routes and len(decision.routes) == 1:
         text = _refusal_for(query)
-        # yield in small slices so the ui treats it like a streamed reply.
-        # without this it would arrive as one giant token and feel jarring.
         for piece in re.findall(r"\S+\s*", text):
             yield piece
         return
@@ -207,11 +252,13 @@ async def generate_stream(
     # normal path: grounded answer over the assembled evidence.
     client = _get_client()
     system = _build_system(context, decision)
+    messages = _build_messages(query, history or [])
+
     async with client.messages.stream(
         model=GENERATION_MODEL,
         max_tokens=1024,
         system=system,
-        messages=[{"role": "user", "content": query}],
+        messages=messages,
         temperature=0.3,
     ) as stream:
         async for text in stream.text_stream:
@@ -223,10 +270,13 @@ async def generate(
     query: str,
     context: BuiltContext,
     decision: RouterDecision,
+    history: list[tuple[str, str]] | None = None,
 ) -> str:
     """non-streaming variant for the eval harness. just concatenates
     the stream."""
     chunks: list[str] = []
-    async for chunk in generate_stream(query=query, context=context, decision=decision):
+    async for chunk in generate_stream(
+        query=query, context=context, decision=decision, history=history
+    ):
         chunks.append(chunk)
     return "".join(chunks)
