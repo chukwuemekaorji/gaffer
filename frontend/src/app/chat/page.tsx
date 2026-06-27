@@ -30,6 +30,21 @@ export default function ChatPage() {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // fire a fast warm-up request as soon as the chat page mounts.
+// if render's free instance is sleeping, this kicks off the wake
+// process while the user is still reading the page. by the time
+// they type a message and hit enter, the backend's usually awake.
+//
+// we ignore the response entirely — this is a side effect, not
+// a data fetch. failures are silent on purpose.
+useEffect(() => {
+  const base =
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  fetch(`${base}/health`, { method: "GET" }).catch(() => {
+    // swallow — we don't care if the warm-up itself fails
+  });
+}, []);
+
   const lastAssistant = [...messages]
     .reverse()
     .find((m): m is Extract<Message, { role: "assistant" }> => m.role === "assistant");
