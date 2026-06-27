@@ -42,7 +42,7 @@ app.include_router(route_api.router)
 app.include_router(chat_api.router)
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health() -> dict[str, str]:
     return {"status": "ok", "env": settings.app_env}
 
