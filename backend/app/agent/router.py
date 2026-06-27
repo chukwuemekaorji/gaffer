@@ -102,27 +102,23 @@ _FALLBACK = RouterDecision(
 
 def _build_user_content(query: str, history: list[tuple[str, str]]) -> str:
     """package history + current query into a single string for the
-    router. we keep history compact — only the last few turns matter
-    for routing decisions, and longer history blows token budget.
+    router. router context is for disambiguating short follow-ups —
+    it doesn't need full assistant responses, just the topic shape.
 
-    each historical message is truncated to ~280 chars. that's enough
-    for the router to recognise the topic ('we were talking about
-    title chances') without paying full token cost for every prior
-    response."""
+    we keep this brutally short: last 4 turns, each truncated to 120
+    chars. that's enough to recognise 'we were talking about the title
+    race' without burning tokens that linearly slow down the router."""
     if not history:
         return query
 
-    lines = ["recent conversation:"]
-    for role, text in history[-6:]:
+    lines = ["recent context:"]
+    for role, text in history[-4:]:
         speaker = "user" if role == "user" else "gaffer"
-        trimmed = text[:280].strip().replace("\n", " ")
-        if len(text) > 280:
+        trimmed = text[:120].strip().replace("\n", " ")
+        if len(text) > 120:
             trimmed += "..."
         lines.append(f"{speaker}: {trimmed}")
-    lines.append("")
-    lines.append(f"current user message: {query}")
-    lines.append("")
-    lines.append("classify the current message in the context of this conversation.")
+    lines.append(f"current: {query}")
     return "\n".join(lines)
 
 
@@ -144,7 +140,7 @@ async def route_query(
         user_content = _build_user_content(query, history or [])
         response = await client.messages.create(
             model=ROUTER_MODEL,
-            max_tokens=400,
+            max_tokens=200,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
             temperature=0.0,    # zero temperature — we want deterministic routing
